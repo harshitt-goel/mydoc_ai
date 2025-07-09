@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 
@@ -10,35 +11,36 @@ class HealthTipsPage extends StatefulWidget {
 
 class _HealthTipsPageState extends State<HealthTipsPage> {
   List<HealthTip> _healthTips = [];
+
   final List<HealthTip> _allPossibleTips = [
     HealthTip(
       title: "Stay Hydrated",
-      description: "Drink at least 8 glasses of water daily",
-      icon: Icons.local_drink,
+      description: "Drink at least 8 glasses of water daily.",
+      icon: CupertinoIcons.drop,
       category: "General",
     ),
     HealthTip(
       title: "Regular Exercise",
-      description: "30 minutes of exercise most days",
-      icon: Icons.directions_run,
+      description: "30 minutes of exercise most days.",
+      icon: CupertinoIcons.heart_fill,
       category: "Fitness",
     ),
     HealthTip(
       title: "Balanced Diet",
-      description: "Eat fruits, vegetables and whole grains",
-      icon: Icons.restaurant,
+      description: "Eat fruits, vegetables and whole grains.",
+      icon: CupertinoIcons.leaf_arrow_circlepath,
       category: "Nutrition",
     ),
     HealthTip(
       title: "Adequate Sleep",
-      description: "Get 7-9 hours of quality sleep",
-      icon: Icons.bedtime,
-      category: "General",
+      description: "Get 7–9 hours of quality sleep.",
+      icon: CupertinoIcons.bed_double,
+      category: "Rest",
     ),
     HealthTip(
       title: "Hand Hygiene",
-      description: "Wash hands frequently with soap",
-      icon: Icons.wash,
+      description: "Wash hands frequently with soap.",
+      icon: CupertinoIcons.hand_raised_fill,
       category: "Prevention",
     ),
   ];
@@ -66,35 +68,108 @@ class _HealthTipsPageState extends State<HealthTipsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Health Tips"),
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text("Health Tips"),
+        trailing: GestureDetector(
+          onTap: _loadRandomTips,
+          child: const Icon(CupertinoIcons.refresh),
+        ),
       ),
-      body: ListView.builder(
-        itemCount: _healthTips.length,
-        itemBuilder: (context, index) {
-          final tip = _healthTips[index];
-          return Card(
-            margin: const EdgeInsets.all(8.0),
-            child: ListTile(
-              leading: Icon(tip.icon),
-              title: Text(tip.title),
-              subtitle: Text(tip.description),
-              trailing: IconButton(
-                icon: Icon(
-                  tip.isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: tip.isFavorite ? Colors.red : null,
+      child: SafeArea(
+        child: ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: _healthTips.length,
+          itemBuilder: (context, index) {
+            final tip = _healthTips[index];
+            return _buildAppleCard(tip, () => _toggleFavorite(index));
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppleCard(HealthTip tip, VoidCallback onToggle) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(tip.icon, color: CupertinoColors.systemBlue, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        tip.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: onToggle,
+                      child: Icon(
+                        tip.isFavorite
+                            ? CupertinoIcons.heart_fill
+                            : CupertinoIcons.heart,
+                        color: tip.isFavorite
+                            ? CupertinoColors.systemRed
+                            : CupertinoColors.inactiveGray,
+                      ),
+                    ),
+                  ],
                 ),
-                onPressed: () => _toggleFavorite(index),
-              ),
+                const SizedBox(height: 10),
+                Text(
+                  tip.description,
+                  style: TextStyle(
+                    color: CupertinoColors.systemGrey,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey5,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    tip.category,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: CupertinoColors.systemBlue,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _loadRandomTips,
-        child: const Icon(Icons.refresh),
-        tooltip: 'Refresh Tips',
+          ),
+        ),
       ),
     );
   }
@@ -128,127 +203,6 @@ class HealthTip {
       icon: icon ?? this.icon,
       category: category ?? this.category,
       isFavorite: isFavorite ?? this.isFavorite,
-    );
-  }
-}
-
-
-class HealthTipCard extends StatelessWidget {
-  final HealthTip tip;
-  final ValueChanged<bool> onFavoriteChanged;
-
-  const HealthTipCard({
-    super.key,
-    required this.tip,
-    required this.onFavoriteChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(tip.icon, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    Text(
-                      tip.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: Icon(
-                    tip.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: tip.isFavorite ? Colors.red : null,
-                  ),
-                  onPressed: () {
-                    onFavoriteChanged(!tip.isFavorite);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(tip.description),
-            const SizedBox(height: 8),
-            Chip(
-              label: Text(tip.category),
-              backgroundColor: Colors.blue.withOpacity(0.1),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class HealthTipSearch extends SearchDelegate<String> {
-  final List<HealthTip> tips;
-
-  HealthTipSearch(this.tips);
-
-  @override
-  List<Widget> buildActions(BuildContext context) {
-    return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () {
-          query = '';
-        },
-      ),
-    ];
-  }
-
-  @override
-  Widget buildLeading(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back),
-      onPressed: () {
-        close(context, '');
-      },
-    );
-  }
-
-  @override
-  Widget buildResults(BuildContext context) {
-    return _buildSearchResults();
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    return _buildSearchResults();
-  }
-
-  Widget _buildSearchResults() {
-    final results = tips.where((tip) {
-      return tip.title.toLowerCase().contains(query.toLowerCase()) ||
-          tip.description.toLowerCase().contains(query.toLowerCase());
-    }).toList();
-
-    return ListView.builder(
-      itemCount: results.length,
-      itemBuilder: (context, index) {
-        final tip = results[index];
-        return ListTile(
-          leading: Icon(tip.icon),
-          title: Text(tip.title),
-          subtitle: Text(tip.description),
-          onTap: () {
-            close(context, tip.title);
-          },
-        );
-      },
     );
   }
 }
