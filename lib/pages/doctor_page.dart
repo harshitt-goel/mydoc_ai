@@ -1,5 +1,5 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'ai_service.dart';
 
 class DoctorPage extends StatefulWidget {
@@ -9,14 +9,10 @@ class DoctorPage extends StatefulWidget {
   State<DoctorPage> createState() => _DoctorPageState();
 }
 
-class _DoctorPageState extends State<DoctorPage> {
+class _DoctorPageState extends State<DoctorPage>
+    with SingleTickerProviderStateMixin {
   final List<String> _selectedSymptoms = [];
   final TextEditingController _symptomController = TextEditingController();
-  bool _isAnalyzing = false;
-  String _diagnosisResult = '';
-  String _recommendedTreatment = '';
-
-  // Sample symptom database
   final List<String> _allSymptoms = [
     'Headache',
     'Fever',
@@ -31,20 +27,27 @@ class _DoctorPageState extends State<DoctorPage> {
   ];
 
   List<String> _filteredSymptoms = [];
+  bool _isAnalyzing = false;
+  String _diagnosisResult = '';
+  String _recommendedTreatment = '';
+
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
     _filteredSymptoms = _allSymptoms;
     _symptomController.addListener(_filterSymptoms);
+    _animController =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeInOut);
   }
 
   void _filterSymptoms() {
     setState(() {
       _filteredSymptoms = _allSymptoms
-          .where((symptom) => symptom
-          .toLowerCase()
-          .contains(_symptomController.text.toLowerCase()))
+          .where((s) => s.toLowerCase().contains(_symptomController.text.toLowerCase()))
           .toList();
     });
   }
@@ -54,14 +57,22 @@ class _DoctorPageState extends State<DoctorPage> {
       setState(() {
         _selectedSymptoms.add(symptom);
         _symptomController.clear();
-        _filterSymptoms();
+        _filteredSymptoms = _allSymptoms;
       });
     }
   }
 
   void _removeSymptom(String symptom) {
+    setState(() => _selectedSymptoms.remove(symptom));
+  }
+
+  void _clearAll() {
     setState(() {
-      _selectedSymptoms.remove(symptom);
+      _selectedSymptoms.clear();
+      _symptomController.clear();
+      _filteredSymptoms = _allSymptoms;
+      _diagnosisResult = '';
+      _recommendedTreatment = '';
     });
   }
 
@@ -76,15 +87,14 @@ class _DoctorPageState extends State<DoctorPage> {
 
     try {
       final result = await AIService.analyzeSymptoms(_selectedSymptoms);
-
-      // You can split BioGPT's response if needed. For now, show full:
       setState(() {
-        _diagnosisResult = 'AI Diagnosis';
+        _diagnosisResult = "AI Diagnosis";
         _recommendedTreatment = result;
       });
+      _animController.forward(from: 0);
     } catch (e) {
       setState(() {
-        _diagnosisResult = 'Error';
+        _diagnosisResult = "Error";
         _recommendedTreatment = e.toString();
       });
     } finally {
@@ -92,168 +102,192 @@ class _DoctorPageState extends State<DoctorPage> {
     }
   }
 
-
-  void _clearAll() {
-    setState(() {
-      _selectedSymptoms.clear();
-      _diagnosisResult = '';
-      _recommendedTreatment = '';
-      _symptomController.clear();
-      _filterSymptoms();
-    });
+  Widget _buildChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: CupertinoColors.darkBackgroundGray,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: CupertinoColors.systemGrey),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(text,
+              style: const TextStyle(color: CupertinoColors.white, fontSize: 14)),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () => _removeSymptom(text),
+            child: const Icon(CupertinoIcons.clear_circled_solid,
+                size: 18, color: CupertinoColors.systemGrey),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
     _symptomController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('AI Doctor'),
-        actions: [
-          if (_selectedSymptoms.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear_all),
-              onPressed: _clearAll,
-              tooltip: 'Clear all',
-            ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Symptom Input Section
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+    return CupertinoApp(
+      theme: const CupertinoThemeData(brightness: Brightness.dark),
+      home: CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(
+          middle: const Text("AI Doctor"),
+          trailing: _selectedSymptoms.isNotEmpty
+              ? GestureDetector(
+            onTap: _clearAll,
+            child: const Icon(CupertinoIcons.clear_circled),
+          )
+              : null,
+        ),
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 child: Column(
                   children: [
-                    const Icon(Icons.medical_services,
-                        size: 64, color: Colors.blue),
-                    const SizedBox(height: 16),
+                    const Icon(CupertinoIcons.heart_circle_fill,
+                        color: CupertinoColors.systemRed, size: 64),
+                    const SizedBox(height: 12),
                     const Text(
-                      'Describe your symptoms',
-                      style:
-                      TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      "Describe your symptoms",
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
-                    TextField(
+                    CupertinoTextField(
                       controller: _symptomController,
-                      decoration: InputDecoration(
-                        hintText: 'Search symptoms...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                      placeholder: 'Search symptoms...',
+                      prefix: const Icon(CupertinoIcons.search),
+                      padding:
+                      const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      style: const TextStyle(color: CupertinoColors.white),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.systemGrey5,
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // Selected Symptoms
-                    if (_selectedSymptoms.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    if (_selectedSymptoms.isNotEmpty)
                       Wrap(
-                        spacing: 8,
-                        children: _selectedSymptoms
-                            .map((symptom) => Chip(
-                          label: Text(symptom),
-                          onDeleted: () => _removeSymptom(symptom),
-                        ))
-                            .toList(),
+                        children: _selectedSymptoms.map(_buildChip).toList(),
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                    // Symptom Suggestions
                     if (_symptomController.text.isNotEmpty)
-                      SizedBox(
-                        height: 200,
-                        child: ListView.builder(
-                          itemCount: _filteredSymptoms.length,
-                          itemBuilder: (context, index) {
-                            final symptom = _filteredSymptoms[index];
-                            return ListTile(
-                              leading: const Icon(Icons.add_circle_outline),
-                              title: Text(symptom),
-                              onTap: () => _addSymptom(symptom),
-                            );
-                          },
+                      ..._filteredSymptoms.map((symptom) => CupertinoButton(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 6, horizontal: 4),
+                        onPressed: () => _addSymptom(symptom),
+                        child: Row(
+                          children: [
+                            const Icon(CupertinoIcons.plus_circle,
+                                size: 18, color: CupertinoColors.activeBlue),
+                            const SizedBox(width: 6),
+                            Text(symptom,
+                                style: const TextStyle(
+                                    color: CupertinoColors.white)),
+                          ],
                         ),
-                      ),
+                      )),
                     const SizedBox(height: 16),
-                    ElevatedButton(
+                    CupertinoButton.filled(
                       onPressed:
                       _selectedSymptoms.isEmpty ? null : _analyzeSymptoms,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
                       child: _isAnalyzing
-                          ? const CircularProgressIndicator(
-                          color: Colors.white)
-                          : const Text('Analyze Symptoms'),
+                          ? const CupertinoActivityIndicator()
+                          : const Text("Analyze Symptoms"),
                     ),
                   ],
                 ),
               ),
-            ),
 
-            // Results Section
-            if (_diagnosisResult.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              const Text(
-                'Diagnosis Results',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Card(
-                color: Colors.blue[50],
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              // Result area
+              if (_diagnosisResult.isNotEmpty) ...[
+                const SizedBox(height: 30),
+                FadeTransition(
+                  opacity: _fadeAnim,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.darkBackgroundGray.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_diagnosisResult,
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        const Text("Recommended Treatment:",
+                            style: TextStyle(
+                                fontSize: 15,
+                                color: CupertinoColors.systemGrey)),
+                        const SizedBox(height: 6),
+                        Text(_recommendedTreatment,
+                            style: const TextStyle(fontSize: 16)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 30),
+
+              const Text("Recent Consultations",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+
+              // Custom Cupertino-styled recent consultation
+              GestureDetector(
+                onTap: () {},
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
                     children: [
-                      Text(
-                        _diagnosisResult,
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
+                      const Icon(CupertinoIcons.lab_flask_solid,
+                          size: 26, color: CupertinoColors.systemBlue),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text("Headache & Dizziness",
+                                style: TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.w600)),
+                            SizedBox(height: 4),
+                            Text("Yesterday • Possible Migraine",
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: CupertinoColors.systemGrey)),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Recommended Treatment:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text(_recommendedTreatment),
+                      const Icon(CupertinoIcons.chevron_forward,
+                          color: CupertinoColors.systemGrey2, size: 18),
                     ],
                   ),
                 ),
               ),
             ],
-
-            // Recent Consultations
-            const SizedBox(height: 24),
-            const Text(
-              'Recent Consultations',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.medical_services),
-                title: const Text('Headache & Dizziness'),
-                subtitle: const Text('Yesterday - Possible Migraine'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  // Navigate to consultation details
-                },
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

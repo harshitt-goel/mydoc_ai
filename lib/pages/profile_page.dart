@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -9,12 +9,12 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   bool _isEditing = false;
   File? _profileImage;
 
-  // User data
   String _name = "John Doe";
   String _email = "john.doe@example.com";
   String _phone = "+1 234 567 8900";
@@ -22,205 +22,372 @@ class _ProfilePageState extends State<ProfilePage> {
   String _allergies = "None";
   String _medicalConditions = "None";
 
-  Future<void> _pickImage() async {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnim;
 
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _controller.forward();
+  }
+
+  Future<void> _pickImage() async {
+    // Placeholder for image picker logic
     setState(() {
       _profileImage = null;
     });
   }
 
   void _toggleEdit() {
-    setState(() {
-      _isEditing = !_isEditing;
-    });
+    setState(() => _isEditing = !_isEditing);
   }
 
   void _saveProfile() {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-      setState(() {
-        _isEditing = false;
+    final form = _formKey.currentState;
+    if (form != null && form.validate()) {
+      form.save();
+      setState(() => _isEditing = false);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showCupertinoDialog(
+          context: context,
+          builder: (_) => const SuccessDialog(),
+        );
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile saved successfully')),
-      );
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Profile'),
-        actions: [
-          IconButton(
-            icon: Icon(_isEditing ? Icons.save : Icons.edit),
-            onPressed: _isEditing ? _saveProfile : _toggleEdit,
+  Widget _buildCupertinoField({
+    required String label,
+    required String initialValue,
+    required FormFieldSetter<String> onSaved,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+    bool required = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13, color: CupertinoColors.systemGrey2)),
+        const SizedBox(height: 6),
+        CupertinoTextFormFieldRow(
+          initialValue: initialValue,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          placeholder: label,
+          decoration: BoxDecoration(
+            color: CupertinoColors.darkBackgroundGray,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          style: const TextStyle(color: CupertinoColors.white),
+          validator: (value) {
+            if (required && (value == null || value.trim().isEmpty)) {
+              return 'Required';
+            }
+            return null;
+          },
+          onSaved: onSaved,
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _buildReadOnlyTile(String label, String value) {
+    return Container(
+      decoration: BoxDecoration(
+        color: CupertinoColors.darkBackgroundGray,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Text('$label: ',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: CupertinoColors.systemGrey)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 16, color: CupertinoColors.white)),
           ),
         ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Center(
-              child: GestureDetector(
-                onTap: _isEditing ? _pickImage : null,
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundImage: _profileImage != null
-                          ? FileImage(_profileImage!)
-                          : const AssetImage('assets/placeholder_profile.png')
-                      as ImageProvider,
-                      child: _profileImage == null
-                          ? const Icon(Icons.person, size: 60)
-                          : null,
-                    ),
-                    if (_isEditing)
-                      const Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: CircleAvatar(
-                          radius: 20,
-                          child: Icon(Icons.camera_alt, size: 20),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  _buildEditableField(
-                    label: 'Full Name',
-                    value: _name,
-                    icon: Icons.person,
-                    isEditing: _isEditing,
-                    onSaved: (value) => _name = value!,
-                  ),
-                  _buildEditableField(
-                    label: 'Email',
-                    value: _email,
-                    icon: Icons.email,
-                    isEditing: _isEditing,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!value.contains('@')) {
-                        return 'Please enter a valid email';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) => _email = value!,
-                  ),
-                  _buildEditableField(
-                    label: 'Phone Number',
-                    value: _phone,
-                    icon: Icons.phone,
-                    isEditing: _isEditing,
-                    keyboardType: TextInputType.phone,
-                    onSaved: (value) => _phone = value!,
-                  ),
-                  _buildEditableField(
-                    label: 'Blood Type',
-                    value: _bloodType,
-                    icon: Icons.bloodtype,
-                    isEditing: _isEditing,
-                    onSaved: (value) => _bloodType = value!,
-                  ),
-                  _buildEditableField(
-                    label: 'Allergies',
-                    value: _allergies,
-                    icon: Icons.warning,
-                    isEditing: _isEditing,
-                    maxLines: 2,
-                    onSaved: (value) => _allergies = value!,
-                  ),
-                  _buildEditableField(
-                    label: 'Medical Conditions',
-                    value: _medicalConditions,
-                    icon: Icons.medical_information,
-                    isEditing: _isEditing,
-                    maxLines: 3,
-                    onSaved: (value) => _medicalConditions = value!,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (!_isEditing)
-              Column(
-                children: [
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.history),
-                    title: const Text('Consultation History'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      // Navigate to consultation history
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.settings),
-                    title: const Text('App Settings'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      // Navigate to settings
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.logout),
-                    title: const Text('Log Out'),
-                    onTap: () {
-                      // Implement logout functionality
-                    },
-                  ),
-                ],
-              ),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _buildEditableField({
-    required String label,
-    required String value,
-    required IconData icon,
-    required bool isEditing,
-    required FormFieldSetter<String> onSaved,
-    FormFieldValidator<String>? validator,
-    TextInputType? keyboardType,
-    int maxLines = 1,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: isEditing
-          ? TextFormField(
-        initialValue: value,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
-          border: const OutlineInputBorder(),
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoApp(
+      theme: const CupertinoThemeData(brightness: Brightness.dark),
+      home: CupertinoPageScaffold(
+        backgroundColor: CupertinoColors.black,
+        navigationBar: CupertinoNavigationBar(
+          middle: const Text("My Profile"),
+          trailing: GestureDetector(
+            onTap: _isEditing ? _saveProfile : _toggleEdit,
+            child: Icon(
+              _isEditing
+                  ? CupertinoIcons.check_mark
+                  : CupertinoIcons.pencil_outline,
+            ),
+          ),
         ),
-        keyboardType: keyboardType,
-        maxLines: maxLines,
-        validator: validator,
-        onSaved: onSaved,
-      )
-          : ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        subtitle: Text(value),
+        child: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Center(
+                    child: GestureDetector(
+                      onTap: _isEditing ? _pickImage : null,
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: CupertinoColors.systemGrey4,
+                              image: _profileImage != null
+                                  ? DecorationImage(
+                                  image: FileImage(_profileImage!),
+                                  fit: BoxFit.cover)
+                                  : null,
+                            ),
+                            child: _profileImage == null
+                                ? const Icon(CupertinoIcons.person_solid,
+                                size: 56, color: CupertinoColors.white)
+                                : null,
+                          ),
+                          if (_isEditing)
+                            const Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: CupertinoColors.systemBlue,
+                                child: Icon(CupertinoIcons.camera_fill,
+                                    color: CupertinoColors.white, size: 16),
+                              ),
+                            )
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  const Text("Vitals",
+                      style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  if (_isEditing)
+                    Column(
+                      children: [
+                        _buildCupertinoField(
+                          label: "Full Name",
+                          initialValue: _name,
+                          required: true,
+                          onSaved: (val) => _name = val ?? '',
+                        ),
+                        _buildCupertinoField(
+                          label: "Email",
+                          initialValue: _email,
+                          keyboardType: TextInputType.emailAddress,
+                          required: true,
+                          onSaved: (val) => _email = val ?? '',
+                        ),
+                        _buildCupertinoField(
+                          label: "Phone",
+                          initialValue: _phone,
+                          keyboardType: TextInputType.phone,
+                          onSaved: (val) => _phone = val ?? '',
+                        ),
+                        _buildCupertinoField(
+                          label: "Blood Type",
+                          initialValue: _bloodType,
+                          onSaved: (val) => _bloodType = val ?? '',
+                        ),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildReadOnlyTile("Full Name", _name),
+                        _buildReadOnlyTile("Email", _email),
+                        _buildReadOnlyTile("Phone", _phone),
+                        _buildReadOnlyTile("Blood Type", _bloodType),
+                      ],
+                    ),
+
+                  const SizedBox(height: 24),
+                  const Text("Health Info",
+                      style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  if (_isEditing)
+                    Column(
+                      children: [
+                        _buildCupertinoField(
+                          label: "Allergies",
+                          initialValue: _allergies,
+                          onSaved: (val) => _allergies = val ?? '',
+                          maxLines: 2,
+                        ),
+                        _buildCupertinoField(
+                          label: "Medical Conditions",
+                          initialValue: _medicalConditions,
+                          onSaved: (val) => _medicalConditions = val ?? '',
+                          maxLines: 2,
+                        ),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildReadOnlyTile("Allergies", _allergies),
+                        _buildReadOnlyTile(
+                            "Medical Conditions", _medicalConditions),
+                      ],
+                    ),
+
+                  const SizedBox(height: 30),
+
+                  if (!_isEditing)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Account",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        CupertinoListTile(
+                          icon: CupertinoIcons.time,
+                          title: "Consultation History",
+                          onTap: () {},
+                        ),
+                        CupertinoListTile(
+                          icon: CupertinoIcons.settings,
+                          title: "App Settings",
+                          onTap: () {},
+                        ),
+                        CupertinoListTile(
+                          icon: CupertinoIcons.square_arrow_right,
+                          title: "Log Out",
+                          onTap: () {},
+                          color: CupertinoColors.systemRed,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
+// ✅ Custom Cupertino Tile
+class CupertinoListTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final Color color;
+
+  const CupertinoListTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.color = CupertinoColors.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: CupertinoColors.systemGrey4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(color: color, fontSize: 16),
+              ),
+            ),
+            const Icon(CupertinoIcons.chevron_forward,
+                size: 18, color: CupertinoColors.systemGrey2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ✅ Custom Success Dialog
+class SuccessDialog extends StatefulWidget {
+  const SuccessDialog({super.key});
+
+  @override
+  State<SuccessDialog> createState() => _SuccessDialogState();
+}
+
+class _SuccessDialogState extends State<SuccessDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+        AnimationController(duration: const Duration(milliseconds: 500), vsync: this);
+    _scaleAnim = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
+    _controller.forward();
+
+    // Auto-close after 1.2 seconds
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scaleAnim,
+      child: CupertinoAlertDialog(
+        title: Column(
+          children: const [
+            Icon(CupertinoIcons.checkmark_seal_fill,
+                color: CupertinoColors.systemGreen, size: 48),
+            SizedBox(height: 8),
+            Text("Saved Successfully"),
+          ],
+        ),
+      ),
+    );
+  }
+}
