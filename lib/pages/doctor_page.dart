@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'ai_service.dart';
 
 class DoctorPage extends StatefulWidget {
   const DoctorPage({super.key});
@@ -73,32 +74,24 @@ class _DoctorPageState extends State<DoctorPage> {
       _recommendedTreatment = '';
     });
 
-    // Simulate API call delay
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final result = await AIService.analyzeSymptoms(_selectedSymptoms);
 
-    // Mock diagnosis logic (replace with real AI integration)
-    String result;
-    String treatment;
-
-    if (_selectedSymptoms.contains('Fever') &&
-        _selectedSymptoms.contains('Cough')) {
-      result = 'Possible Flu';
-      treatment = 'Rest, fluids, and over-the-counter fever reducers';
-    } else if (_selectedSymptoms.contains('Headache') &&
-        _selectedSymptoms.contains('Dizziness')) {
-      result = 'Possible Migraine';
-      treatment = 'Rest in a dark room, consider pain relievers';
-    } else {
-      result = 'General Illness';
-      treatment = 'Rest and monitor symptoms. Consult doctor if symptoms worsen';
+      // You can split BioGPT's response if needed. For now, show full:
+      setState(() {
+        _diagnosisResult = 'AI Diagnosis';
+        _recommendedTreatment = result;
+      });
+    } catch (e) {
+      setState(() {
+        _diagnosisResult = 'Error';
+        _recommendedTreatment = e.toString();
+      });
+    } finally {
+      setState(() => _isAnalyzing = false);
     }
-
-    setState(() {
-      _isAnalyzing = false;
-      _diagnosisResult = result;
-      _recommendedTreatment = treatment;
-    });
   }
+
 
   void _clearAll() {
     setState(() {
