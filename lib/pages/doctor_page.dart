@@ -1,5 +1,10 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'ai_service.dart';
 
 class DoctorPage extends StatefulWidget {
@@ -9,8 +14,8 @@ class DoctorPage extends StatefulWidget {
   State<DoctorPage> createState() => _DoctorPageState();
 }
 
-class _DoctorPageState extends State<DoctorPage>
-    with SingleTickerProviderStateMixin {
+class _DoctorPageState extends State<DoctorPage> {
+  // Symptom-related
   final List<String> _selectedSymptoms = [];
   final TextEditingController _symptomController = TextEditingController();
   final List<String> _allSymptoms = [
@@ -25,23 +30,21 @@ class _DoctorPageState extends State<DoctorPage>
     'Chest pain',
     'Muscle aches'
   ];
-
   List<String> _filteredSymptoms = [];
-  bool _isAnalyzing = false;
+  bool _isAnalyzingText = false;
   String _diagnosisResult = '';
   String _recommendedTreatment = '';
 
-  late AnimationController _animController;
-  late Animation<double> _fadeAnim;
+  // Image-related
+  File? _selectedImage;
+  bool _isAnalyzingImage = false;
+  String _imageDiagnosis = '';
 
   @override
   void initState() {
     super.initState();
     _filteredSymptoms = _allSymptoms;
     _symptomController.addListener(_filterSymptoms);
-    _animController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeInOut);
   }
 
   void _filterSymptoms() {
@@ -80,7 +83,7 @@ class _DoctorPageState extends State<DoctorPage>
     if (_selectedSymptoms.isEmpty) return;
 
     setState(() {
-      _isAnalyzing = true;
+      _isAnalyzingText = true;
       _diagnosisResult = '';
       _recommendedTreatment = '';
     });
@@ -91,14 +94,69 @@ class _DoctorPageState extends State<DoctorPage>
         _diagnosisResult = "AI Diagnosis";
         _recommendedTreatment = result;
       });
-      _animController.forward(from: 0);
     } catch (e) {
       setState(() {
         _diagnosisResult = "Error";
         _recommendedTreatment = e.toString();
       });
     } finally {
-      setState(() => _isAnalyzing = false);
+      setState(() => _isAnalyzingText = false);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+        _imageDiagnosis = '';
+      });
+      await _analyzeImage(_selectedImage!);
+    }
+  }
+
+  Future<void> _analyzeImage(File image) async {
+    setState(() {
+      _isAnalyzingImage = true;
+      _imageDiagnosis = '';
+    });
+
+    final bytes = await image.readAsBytes();
+    final apiKey = dotenv.env['HUGGINGFACE_API_KEY'];
+    const String apiUrl =
+        'https://api-inference.huggingface.co/models/dima806/skin-disease-classification';
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/octet-stream',
+        },
+        body: bytes,
+      );
+
+      if (response.statusCode == 200) {
+        final resultJson = json.decode(response.body);
+        final prediction = resultJson[0]['label'];
+        final confidence = (resultJson[0]['score'] * 100).toStringAsFixed(2);
+
+        setState(() {
+          _imageDiagnosis = '$prediction (Confidence: $confidence%)';
+        });
+      } else {
+        setState(() {
+          _imageDiagnosis = 'API Error: ${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _imageDiagnosis = 'Error: $e';
+      });
+    } finally {
+      setState(() => _isAnalyzingImage = false);
     }
   }
 
@@ -114,8 +172,7 @@ class _DoctorPageState extends State<DoctorPage>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(text,
-              style: const TextStyle(color: CupertinoColors.white, fontSize: 14)),
+          Text(text, style: const TextStyle(color: CupertinoColors.white, fontSize: 14)),
           const SizedBox(width: 6),
           GestureDetector(
             onTap: () => _removeSymptom(text),
@@ -128,166 +185,90 @@ class _DoctorPageState extends State<DoctorPage>
   }
 
   @override
-  void dispose() {
-    _symptomController.dispose();
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
-      theme: const CupertinoThemeData(brightness: Brightness.dark),
-      home: CupertinoPageScaffold(
-        navigationBar: CupertinoNavigationBar(
-          middle: const Text("AI Doctor"),
-          trailing: _selectedSymptoms.isNotEmpty
-              ? GestureDetector(
-            onTap: _clearAll,
-            child: const Icon(CupertinoIcons.clear_circled),
-          )
-              : null,
-        ),
-        child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text("AI Doctor"),
+        trailing: _selectedSymptoms.isNotEmpty
+            ? GestureDetector(
+          onTap: _clearAll,
+          child: const Icon(CupertinoIcons.clear_circled),
+        )
+            : null,
+      ),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // 🔍 Symptom Checker
+            const Text("Describe your symptoms", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            CupertinoTextField(
+              controller: _symptomController,
+              placeholder: 'Search symptoms...',
+              prefix: const Icon(CupertinoIcons.search),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+              style: const TextStyle(color: CupertinoColors.white),
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey5,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_selectedSymptoms.isNotEmpty) Wrap(children: _selectedSymptoms.map(_buildChip).toList()),
+            if (_symptomController.text.isNotEmpty)
+              ..._filteredSymptoms.map((symptom) => CupertinoButton(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                onPressed: () => _addSymptom(symptom),
+                child: Row(
                   children: [
-                    const Icon(CupertinoIcons.heart_circle_fill,
-                        color: CupertinoColors.systemRed, size: 64),
-                    const SizedBox(height: 12),
-                    const Text(
-                      "Describe your symptoms",
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    CupertinoTextField(
-                      controller: _symptomController,
-                      placeholder: 'Search symptoms...',
-                      prefix: const Icon(CupertinoIcons.search),
-                      padding:
-                      const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                      style: const TextStyle(color: CupertinoColors.white),
-                      decoration: BoxDecoration(
-                        color: CupertinoColors.systemGrey5,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_selectedSymptoms.isNotEmpty)
-                      Wrap(
-                        children: _selectedSymptoms.map(_buildChip).toList(),
-                      ),
-                    if (_symptomController.text.isNotEmpty)
-                      ..._filteredSymptoms.map((symptom) => CupertinoButton(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 6, horizontal: 4),
-                        onPressed: () => _addSymptom(symptom),
-                        child: Row(
-                          children: [
-                            const Icon(CupertinoIcons.plus_circle,
-                                size: 18, color: CupertinoColors.activeBlue),
-                            const SizedBox(width: 6),
-                            Text(symptom,
-                                style: const TextStyle(
-                                    color: CupertinoColors.white)),
-                          ],
-                        ),
-                      )),
-                    const SizedBox(height: 16),
-                    CupertinoButton.filled(
-                      onPressed:
-                      _selectedSymptoms.isEmpty ? null : _analyzeSymptoms,
-                      child: _isAnalyzing
-                          ? const CupertinoActivityIndicator()
-                          : const Text("Analyze Symptoms"),
-                    ),
+                    const Icon(CupertinoIcons.plus_circle,
+                        size: 18, color: CupertinoColors.activeBlue),
+                    const SizedBox(width: 6),
+                    Text(symptom, style: const TextStyle(color: CupertinoColors.white)),
                   ],
                 ),
-              ),
+              )),
+            const SizedBox(height: 16),
+            CupertinoButton.filled(
+              onPressed: _selectedSymptoms.isEmpty ? null : _analyzeSymptoms,
+              child: _isAnalyzingText
+                  ? const CupertinoActivityIndicator()
+                  : const Text("Analyze Symptoms"),
+            ),
 
-              // Result area
-              if (_diagnosisResult.isNotEmpty) ...[
-                const SizedBox(height: 30),
-                FadeTransition(
-                  opacity: _fadeAnim,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: CupertinoColors.darkBackgroundGray.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_diagnosisResult,
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        const Text("Recommended Treatment:",
-                            style: TextStyle(
-                                fontSize: 15,
-                                color: CupertinoColors.systemGrey)),
-                        const SizedBox(height: 6),
-                        Text(_recommendedTreatment,
-                            style: const TextStyle(fontSize: 16)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-
+            // 🧠 Symptom result
+            if (_diagnosisResult.isNotEmpty) ...[
               const SizedBox(height: 30),
-
-              const Text("Recent Consultations",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-
-              // Custom Cupertino-styled recent consultation
-              GestureDetector(
-                onTap: () {},
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.systemGrey6.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(CupertinoIcons.lab_flask_solid,
-                          size: 26, color: CupertinoColors.systemBlue),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text("Headache & Dizziness",
-                                style: TextStyle(
-                                    fontSize: 16, fontWeight: FontWeight.w600)),
-                            SizedBox(height: 4),
-                            Text("Yesterday • Possible Migraine",
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    color: CupertinoColors.systemGrey)),
-                          ],
-                        ),
-                      ),
-                      const Icon(CupertinoIcons.chevron_forward,
-                          color: CupertinoColors.systemGrey2, size: 18),
-                    ],
-                  ),
-                ),
-              ),
+              Text(_diagnosisResult, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              Text("Recommended Treatment:", style: TextStyle(color: CupertinoColors.systemGrey)),
+              const SizedBox(height: 4),
+              Text(_recommendedTreatment),
             ],
-          ),
+
+            const Divider(height: 40),
+
+            // 📸 Image-based Diagnosis
+            const Text("Or upload a skin image", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            CupertinoButton.filled(
+              child: const Text('Pick Image'),
+              onPressed: _pickImage,
+            ),
+            const SizedBox(height: 12),
+            if (_selectedImage != null) Image.file(_selectedImage!, height: 200),
+            if (_isAnalyzingImage)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: CupertinoActivityIndicator(),
+              ),
+            if (_imageDiagnosis.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text("Image Diagnosis: $_imageDiagnosis"),
+              ),
+          ],
         ),
       ),
     );
