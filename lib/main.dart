@@ -1,9 +1,12 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'pages/doctor_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/health_tips_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env"); // Load .env file
   runApp(const MyApp());
 }
 
@@ -12,9 +15,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CupertinoApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: HomePage(),
+      theme: ThemeData.dark().copyWith(
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blueGrey).copyWith(
+          secondary: Colors.blueAccent,
+        ),
+      ),
+      home: const HomePage(),
     );
   }
 }
@@ -37,29 +45,29 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoTabScaffold(
-      tabBar: CupertinoTabBar(
-        activeColor: CupertinoColors.activeBlue,
+    return Scaffold(
+      body: _pages[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        selectedItemColor: Colors.blueAccent,
+        unselectedItemColor: Colors.grey,
+        backgroundColor: const Color(0xFF1A252F),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.person),
+            icon: Icon(Icons.person),
             label: 'Profile',
           ),
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.bandage_fill),
+            icon: Icon(Icons.local_hospital),
             label: 'AI Doctor',
           ),
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.heart),
+            icon: Icon(Icons.favorite),
             label: 'Health Tips',
           ),
         ],
       ),
-      tabBuilder: (context, index) {
-        return CupertinoTabView(
-          builder: (context) => _pages[index],
-        );
-      },
     );
   }
 }

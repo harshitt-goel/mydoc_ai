@@ -1,34 +1,46 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class AIService {
-  static String _endpoint = dotenv.env['SERVER_URL'] ?? "http://localhost:8000/generate"; // Default to localhost if not set
-  static const Map<String, String> _headers = {
-    "Content-Type": "application/json"
-  };
-
   static Future<String> analyzeSymptoms(List<String> symptoms) async {
-    // Validate endpoint
-    try {
-      Uri.parse(_endpoint);
-    } catch (e) {
-      throw Exception("Invalid server URL: $_endpoint. Please configure SERVER_URL in .env with a valid address (e.g., http://192.168.1.100:8000).");
+    final apiKey = dotenv.env['GEMINI_API_KEY']; // Use GEMINI_API_KEY
+    if (apiKey == null) {
+      throw Exception("GEMINI_API_KEY is not set in .env");
     }
 
-    final prompt = "The patient reports the following symptoms: ${symptoms.join(', ')}. What could be the possible diagnosis and treatment?";
+    final model = GenerativeModel(model: 'gemini-2.5-pro', apiKey: apiKey); // Initialize Gemini-Pro model
+    final prompt = "Given these symptoms: ${symptoms.join(', ')}, what is the likely illness and treatment plan? Provide a concise answer.";
 
-    final response = await http.post(
-      Uri.parse(_endpoint),
-      headers: _headers,
-      body: jsonEncode({"text": prompt}),
-    );
+    try {
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+      return response.text ?? "No diagnosis available."; // Get text from response
+    } catch (e) {
+      throw Exception("Gemini Symptom Analysis Error: $e");
+    }
+  }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data["generated_text"] ?? "No response from AI.";
-    } else {
-      throw Exception("AI Error: ${response.statusCode} ${response.body}");
+  static Future<String> analyzeImage(Uint8List imageBytes) async {
+    final apiKey = dotenv.env['GEMINI_API_KEY']; // Use GEMINI_API_KEY
+    if (apiKey == null) {
+      throw Exception("GEMINI_API_KEY is not set in .env");
+    }
+
+    // Initialize Gemini-Pro-Vision model for image analysis
+    final model = GenerativeModel(model: 'gemini-2.5-pro-vision', apiKey: apiKey);
+
+    try {
+      final content = [
+        Content.text("What is this skin condition and what are some general recommendations?"),
+        Content.data('image/jpeg', imageBytes), // Assuming JPEG, adjust if needed
+      ];
+      final response = await model.generateContent(content);
+      return response.text ?? "No image diagnosis available.";
+    } catch (e) {
+      throw Exception("Gemini Image Analysis Error: $e");
     }
   }
 }
