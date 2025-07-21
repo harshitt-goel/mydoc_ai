@@ -30,7 +30,7 @@ class AIService {
     }
 
     // Initialize Gemini-Pro-Vision model for image analysis
-    final model = GenerativeModel(model: 'gemini-2.5-pro-vision', apiKey: apiKey);
+    final model = GenerativeModel(model: 'gemini-1.5-flash', apiKey: apiKey);
 
     try {
       final content = [
