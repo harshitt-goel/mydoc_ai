@@ -1,12 +1,6 @@
-// doctor_page.dart (Updated)
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'ai_service.dart';
 
 class DoctorPage extends StatefulWidget {
@@ -19,6 +13,7 @@ class DoctorPage extends StatefulWidget {
 class _DoctorPageState extends State<DoctorPage> {
   final List<String> _selectedSymptoms = [];
   final TextEditingController _symptomController = TextEditingController();
+  final TextEditingController _customPromptController = TextEditingController();
   final List<String> _allSymptoms = [
     'Headache', 'Fever', 'Cough', 'Fatigue', 'Nausea',
     'Dizziness', 'Sore throat', 'Shortness of breath',
@@ -58,16 +53,21 @@ class _DoctorPageState extends State<DoctorPage> {
   }
 
   Future<void> _analyzeSymptoms() async {
-    if (_selectedSymptoms.isEmpty) return;
+    final customPrompt = _customPromptController.text.trim();
+    if (_selectedSymptoms.isEmpty && customPrompt.isEmpty) return;
+
     setState(() {
       _isAnalyzingText = true;
       _textDiagnosis = '';
     });
+
     try {
-      final result = await AIService.analyzeSymptoms(_selectedSymptoms);
+      final result = await AIService.analyzeSymptoms(
+        symptoms: _selectedSymptoms,
+        customPrompt: customPrompt,
+      );
       setState(() => _textDiagnosis = result);
     } catch (e) {
-      debugPrint('Symptom Analysis Error: $e');
       setState(() => _textDiagnosis = 'Error: $e');
     } finally {
       setState(() => _isAnalyzingText = false);
@@ -96,7 +96,6 @@ class _DoctorPageState extends State<DoctorPage> {
       final result = await AIService.analyzeImage(bytes);
       setState(() => _imageDiagnosis = result);
     } catch (e) {
-      debugPrint('Image Analysis Error: $e');
       setState(() => _imageDiagnosis = 'Error: $e');
     } finally {
       setState(() => _isAnalyzingImage = false);
@@ -114,30 +113,47 @@ class _DoctorPageState extends State<DoctorPage> {
             const Text('Symptom Checker', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             TextField(
               controller: _symptomController,
-              decoration: const InputDecoration(hintText: 'Enter symptoms...'),
+              decoration: const InputDecoration(hintText: 'Enter or select symptoms...'),
             ),
             Wrap(
               spacing: 8,
-              children: _filteredSymptoms.map((s) => ActionChip(label: Text(s), onPressed: () => _addSymptom(s))).toList(),
+              children: _filteredSymptoms
+                  .map((s) => ActionChip(label: Text(s), onPressed: () => _addSymptom(s)))
+                  .toList(),
             ),
-            const SizedBox(height: 8),
-            if (_selectedSymptoms.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            if (_selectedSymptoms.isNotEmpty)
               Wrap(
                 spacing: 8,
                 children: _selectedSymptoms
-                    .map((s) => Chip(label: Text(s), onDeleted: () => setState(() => _selectedSymptoms.remove(s))))
+                    .map((s) => Chip(
+                  label: Text(s),
+                  onDeleted: () => setState(() => _selectedSymptoms.remove(s)),
+                ))
                     .toList(),
               ),
-              ElevatedButton(
-                onPressed: _isAnalyzingText ? null : _analyzeSymptoms,
-                child: _isAnalyzingText ? const CircularProgressIndicator() : const Text('Analyze Symptoms'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _customPromptController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Custom Prompt',
+                hintText: 'Describe your symptoms or health concern...',
+                border: OutlineInputBorder(),
               ),
-              if (_textDiagnosis.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(_textDiagnosis),
-                ),
-            ],
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _isAnalyzingText ? null : _analyzeSymptoms,
+              child: _isAnalyzingText
+                  ? const CircularProgressIndicator()
+                  : const Text('Analyze Symptoms'),
+            ),
+            if (_textDiagnosis.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(_textDiagnosis),
+              ),
             const Divider(),
             const Text('Image Diagnosis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             ElevatedButton(onPressed: _pickImage, child: const Text('Upload Skin Image')),
