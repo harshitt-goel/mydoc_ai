@@ -15,17 +15,37 @@ class AIService {
     final model = GenerativeModel(model: 'gemini-2.5-pro', apiKey: apiKey);
 
     // Build final prompt
-    String finalPrompt = '';
+    String finalPrompt = "Analyze these symptoms and provide response in 200 words in EXACTLY this format:\n"
+    "[Differential Diagnosis (Max 3)]\n"
+    "1. [Diagnosis] (Confidence: High/Moderate/Low)\n"
+    "- Features: [characteristics]\n"
+    "- Next Steps: [actions]\n"
+    "- Rationale: [reasoning]\n"
+
+    "2. [Diagnosis] (Confidence)\n"
+    "- Features: [...]\n"
+    "- Next Steps: [...]\n"
+
+    "[Action Plan]"
+    "- [Immediate step 1]\n"
+    "- [Immediate step 2]\n"
+    "- [Immediate step 3]\n"
+
+    "[Clinical Notes]"
+    "- Red flags: [if any]\n"
+    "- Follow-up: [timeline]\n"
+    "- Considerations: [additional notes]\n"
+
+    "For these inputs:";
+
     if (symptoms.isNotEmpty && customPrompt.isNotEmpty) {
-      finalPrompt =
-      "The patient has the following symptoms: ${symptoms.join(', ')}. Additionally, they reported: $customPrompt. Please provide a likely diagnosis and treatment.";
+      finalPrompt += "Symptoms: ${symptoms.join(', ')}. Additional notes: $customPrompt";
     } else if (symptoms.isNotEmpty) {
-      finalPrompt =
-      "Given these symptoms: ${symptoms.join(', ')}, what is the likely illness and treatment plan?";
+      finalPrompt += "Symptoms: ${symptoms.join(', ')}";
     } else if (customPrompt.isNotEmpty) {
-      finalPrompt = "Patient says: $customPrompt. What could be the diagnosis and treatment?";
+      finalPrompt += "Patient report: $customPrompt";
     } else {
-      return "No symptoms or prompt provided.";
+      return "Please describe your symptoms or concerns.";
     }
 
     try {
