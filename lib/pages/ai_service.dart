@@ -14,7 +14,6 @@ class AIService {
 
     final model = GenerativeModel(model: 'gemini-2.5-pro', apiKey: apiKey);
 
-    // Build final prompt
     String finalPrompt = "Analyze these symptoms and provide response in 200 words in EXACTLY this format:\n"
     "[Differential Diagnosis (Max 3)]\n"
     "1. [Diagnosis] (Confidence: High/Moderate/Low)\n"
