@@ -6,7 +6,7 @@ import 'pages/health_tips_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env"); // Load .env file
+  await dotenv.load(fileName: ".env"); 
   runApp(const MyApp());
 }
 
