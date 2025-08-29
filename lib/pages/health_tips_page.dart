@@ -3,10 +3,9 @@ import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart' show debugPrint; // Fixed import
+import 'package:flutter/foundation.dart' show debugPrint; 
 import 'package:url_launcher/url_launcher.dart';
 
-// Placeholder for profile data
 class ProfileData {
   final int age;
   final String gender;
@@ -68,8 +67,7 @@ class _HealthTipsPageState extends State<HealthTipsPage> with SingleTickerProvid
     final profile = ProfileManager.getProfile();
     List<String> fetchedTips = [];
 
-    // Simulated health API (replace with a real health-focused API if available)
-    const String healthApiUrl = 'https://api.adviceslip.com/advice'; // Placeholder; use a health API if possible
+    const String healthApiUrl = 'https://api.adviceslip.com/advice';
     for (int i = 0; i < 5; i++) {
       try {
         final res = await http.get(Uri.parse(healthApiUrl));
