@@ -30,7 +30,7 @@ class _DoctorPageState extends State<DoctorPage> with AutomaticKeepAliveClientMi
   String _result = '';
 
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => true; // This preserves the state
 
   Future<void> _send() async {
     setState(() => _loading = true);
@@ -66,7 +66,7 @@ class _DoctorPageState extends State<DoctorPage> with AutomaticKeepAliveClientMi
                     context,
                     MaterialPageRoute(
                       builder: (_) => SmartImageConsult(image: File(file.path)),
-                      maintainState: true,
+                      maintainState: true, // Preserve state when navigating
                     ),
                   );
                 }
@@ -83,7 +83,7 @@ class _DoctorPageState extends State<DoctorPage> with AutomaticKeepAliveClientMi
                     context,
                     MaterialPageRoute(
                       builder: (_) => SmartImageConsult(image: File(file.path)),
-                      maintainState: true,
+                      maintainState: true, // Preserve state when navigating
                     ),
                   );
                 }
@@ -103,7 +103,7 @@ class _DoctorPageState extends State<DoctorPage> with AutomaticKeepAliveClientMi
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
 
     return Scaffold(
       backgroundColor: const Color(0xFF001121),
@@ -234,6 +234,7 @@ class _DoctorPageState extends State<DoctorPage> with AutomaticKeepAliveClientMi
   }
 }
 
+/* --------------------------------------------------- */
 
 class SmartImageConsult extends StatefulWidget {
   final File image;
@@ -263,21 +264,25 @@ class _SmartImageConsultState extends State<SmartImageConsult> {
         error = '';
       });
 
+      // Verify image exists
       final exists = await widget.image.exists();
       if (!exists) {
         throw Exception('Selected image no longer exists');
       }
 
+      // Get image size
       final size = await widget.image.length();
-      if (size > 5 * 1024 * 1024) {
+      if (size > 5 * 1024 * 1024) { // 5MB limit
         throw Exception('Image is too large (${size ~/ (1024 * 1024)}MB)');
       }
 
+      // Read image bytes
       final bytes = await widget.image.readAsBytes();
       if (bytes.isEmpty) {
         throw Exception('Failed to read image data');
       }
 
+      // Call AI service
       final res = await AIService.analyzeImage(bytes);
 
       setState(() {
@@ -316,6 +321,7 @@ class _SmartImageConsultState extends State<SmartImageConsult> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
+              // Image Preview
               Container(
                 height: 200,
                 decoration: BoxDecoration(
@@ -335,9 +341,11 @@ class _SmartImageConsultState extends State<SmartImageConsult> {
               ),
               const SizedBox(height: 20),
 
+              // Error Message
               if (error.isNotEmpty)
                 Text(error, style: TextStyle(color: Colors.red)),
 
+              // Loading or Results
               if (loading)
                 const Center(child: CircularProgressIndicator(color: Colors.white))
               else if (diagnosis.isNotEmpty)
@@ -354,6 +362,7 @@ class _SmartImageConsultState extends State<SmartImageConsult> {
   }
 }
 
+/* Word-level fade-in reveal */
 class _AnimatedTextReveal extends StatefulWidget {
   final String text;
   const _AnimatedTextReveal({required this.text});
@@ -398,6 +407,7 @@ class __AnimatedTextRevealState extends State<_AnimatedTextReveal>
   }
 }
 
+/* --------------------------------------------------- */
 
 class _GlassCard extends StatelessWidget {
   final String title;

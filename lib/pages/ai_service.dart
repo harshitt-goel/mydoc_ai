@@ -14,6 +14,7 @@ class AIService {
 
     final model = GenerativeModel(model: 'gemini-2.5-pro', apiKey: apiKey);
 
+    // Build final prompt
     String finalPrompt = "Analyze these symptoms and provide response in 200 words in EXACTLY this format:\n"
     "[Differential Diagnosis (Max 3)]\n"
     "1. [Diagnosis] (Confidence: High/Moderate/Low)\n"
@@ -67,7 +68,7 @@ class AIService {
     try {
       final content = [
         Content.text("What is this skin condition and what are some general recommendations?"),
-        Content.data('image/jpeg', imageBytes),
+        Content.data('image/jpeg/', imageBytes),
       ];
       final response = await model.generateContent(content);
       return response.text ?? "No image diagnosis available.";

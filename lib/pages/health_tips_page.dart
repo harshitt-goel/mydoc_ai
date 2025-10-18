@@ -1,34 +1,7 @@
-import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart' show debugPrint; 
-import 'package:url_launcher/url_launcher.dart';
-
-class ProfileData {
-  final int age;
-  final String gender;
-  final String activityLevel;
-  final List<String> medicalConditions;
-
-  ProfileData({
-    required this.age,
-    required this.gender,
-    required this.activityLevel,
-    required this.medicalConditions,
-  });
-}
-
-class ProfileManager {
-  static ProfileData? _profile;
-
-  static void setProfile(ProfileData profile) {
-    _profile = profile;
-  }
-
-  static ProfileData? getProfile() => _profile;
-}
+import 'package:ai_doctor/models/profile_data.dart';
+import 'package:ai_doctor/models/profile_manager.dart';
 
 class HealthTipsPage extends StatefulWidget {
   const HealthTipsPage({super.key});
@@ -37,21 +10,32 @@ class HealthTipsPage extends StatefulWidget {
   State<HealthTipsPage> createState() => _HealthTipsPageState();
 }
 
-class _HealthTipsPageState extends State<HealthTipsPage> with SingleTickerProviderStateMixin {
-  List<String> _tips = [];
+class _HealthTipsPageState extends State<HealthTipsPage>
+    with SingleTickerProviderStateMixin {
+  final List<HealthTip> _commonTips = [];
+  List<String> _personalizedTips = [];
   bool _isLoading = false;
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
-    _controller.forward();
+    _fadeAnim = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOutCubic,
+    );
+    _scaleAnim = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutBack,
+      ),
+    );
     _loadTips();
   }
 
@@ -63,235 +47,179 @@ class _HealthTipsPageState extends State<HealthTipsPage> with SingleTickerProvid
 
   Future<void> _loadTips() async {
     setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 600));
+    setState(() {
+      _commonTips.clear();
+      _commonTips.addAll(_generateCommonTips());
+      _generatePersonalizedTips();
+      _isLoading = false;
+    });
+    _controller.forward();
+  }
 
+  void _generatePersonalizedTips() {
     final profile = ProfileManager.getProfile();
-    List<String> fetchedTips = [];
+    if (profile == null) return;
 
-    const String healthApiUrl = 'https://api.adviceslip.com/advice';
-    for (int i = 0; i < 5; i++) {
-      try {
-        final res = await http.get(Uri.parse(healthApiUrl));
-        if (res.statusCode == 200) {
-          final data = jsonDecode(res.body);
-          String baseTip = data['slip']['advice'];
-          fetchedTips.add(_customizeHealthTip(baseTip, profile));
-        } else {
-          fetchedTips.add(_customizeHealthTip("Maintain a balanced diet and stay active.", profile));
-        }
-      } catch (e) {
-        debugPrint("Tip fetch error: $e");
-        fetchedTips.add(_customizeHealthTip("Stay active and consult a doctor if needed.", profile));
+    final List<String> tips = [];
+    double bmi = 0;
+    if (profile.heightCm != null && profile.weightKg != null && profile.heightCm! > 0) {
+      final h = profile.heightCm! / 100.0;
+      bmi = profile.weightKg! / (h * h);
+    }
+
+    if (profile.age > 60) {
+      tips.add("As a senior, engage in light stretching and walking to maintain mobility.");
+    } else if (profile.age < 18) {
+      tips.add("As a young individual, focus on building strong habits around sleep, food, and exercise.");
+    }
+
+    if (profile.activityLevel.toLowerCase() == 'sedentary') {
+      tips.add("Add 30 mins of walking to your day to boost metabolism and mental clarity.");
+    } else if (profile.activityLevel.toLowerCase() == 'active') {
+      tips.add("Maintain hydration and proper recovery to support your active lifestyle.");
+    }
+
+    for (final condition in profile.medicalConditions) {
+      if (condition.toLowerCase().contains("diabetes")) {
+        tips.add("Monitor blood sugar levels and avoid refined sugars.");
+      }
+      if (condition.toLowerCase().contains("hypertension")) {
+        tips.add("Limit sodium intake and check your blood pressure weekly.");
+      }
+      if (condition.toLowerCase().contains("asthma")) {
+        tips.add("Avoid dusty environments and practice breathing exercises.");
       }
     }
 
-    setState(() {
-      _tips = fetchedTips;
-      _isLoading = false;
+    if (bmi > 0) {
+      if (bmi >= 25) {
+        tips.add("Your BMI suggests you might benefit from more physical activity and a balanced diet.");
+      } else if (bmi < 18.5) {
+        tips.add("Include more nutrient-rich foods to reach a healthy weight.");
+      } else {
+        tips.add("Your BMI is in a healthy range — great job maintaining it!");
+      }
+    }
+
+    if (tips.isEmpty) {
+      tips.add("Stay hydrated, eat balanced meals, and move daily for long-term wellness.");
+    }
+
+    _personalizedTips = tips;
+  }
+
+  List<HealthTip> _generateCommonTips() {
+    final random = Random();
+    final categories = ['Mindfulness', 'Nutrition', 'Activity', 'Recovery', 'Prevention'];
+
+    return List.generate(5, (index) {
+      final category = categories[index % categories.length];
+      final icon = _getCategoryIcon(category);
+      final color = _getCategoryColor(category);
+      return HealthTip(
+        title: _generateTitle(category),
+        content: _generateContent(category),
+        category: category,
+        icon: icon,
+        color: color,
+      );
     });
   }
 
-  String _customizeHealthTip(String baseTip, ProfileData? profile) {
-    if (profile == null) {
-      return "General health tip: $baseTip. Visit apple.com/health for more info.";
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Mindfulness': return Icons.self_improvement;
+      case 'Nutrition': return Icons.restaurant;
+      case 'Activity': return Icons.directions_run;
+      case 'Recovery': return Icons.night_shelter;
+      case 'Prevention': return Icons.medical_services;
+      default: return Icons.health_and_safety;
     }
-
-    String customizedTip = baseTip;
-    if (profile.age > 60) {
-      customizedTip = "For seniors: $customizedTip. Try 10 minutes of light yoga daily.";
-    } else if (profile.age < 30 && profile.activityLevel == "Active") {
-      customizedTip = "For young actives: $customizedTip. Aim for 30 minutes of cardio.";
-    } else if (profile.activityLevel == "Sedentary") {
-      customizedTip = "For low activity: $customizedTip. Start with 15-minute walks.";
-    }
-    if (profile.medicalConditions.contains("Diabetes")) {
-      customizedTip += " Monitor blood sugar and eat low-glycemic foods.";
-    } else if (profile.medicalConditions.contains("Hypertension")) {
-      customizedTip += " Reduce sodium and check blood pressure regularly.";
-    } else if (profile.medicalConditions.isNotEmpty) {
-      customizedTip += " Consult your doctor about your condition.";
-    }
-
-    return "$customizedTip Learn more at apple.com/health.";
   }
 
-  Widget _buildHealthCard(String tip, int index) {
-    final random = Random();
-    final icons = [
-      CupertinoIcons.heart_fill,
-      CupertinoIcons.flame_fill,
-      CupertinoIcons.drop_fill,
-      CupertinoIcons.moon_fill,
-      CupertinoIcons.person_fill,
-    ];
-    final icon = icons[random.nextInt(icons.length)];
-    final categories = [
-      "Heart Health",
-      "Energy",
-      "Hydration",
-      "Rest",
-      "Wellness"
-    ];
-    final category = categories[index % categories.length];
-
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: GestureDetector(
-        onTap: () {
-          _showTipDetails(tip);
-        },
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A3B4A),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF3B4A5A), width: 0.5),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF3B4A5A).withOpacity(0.3),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, color: const Color(0xFF4A90E2), size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        "Health Tip ${index + 1}",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  tip,
-                  style: const TextStyle(
-                    color: Color(0xFFA3BFFA),
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3B4A5A).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    category.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF4A90E2),
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Mindfulness': return const Color(0xFF7FD1B9);
+      case 'Nutrition': return const Color(0xFFF7A76C);
+      case 'Activity': return const Color(0xFF4A90E2);
+      case 'Recovery': return const Color(0xFF9B59B6);
+      case 'Prevention': return const Color(0xFFE74C3C);
+      default: return const Color(0xFF4A90E2);
+    }
   }
 
-  Future<void> _showTipDetails(String tip) async {
-    await showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text(
-          "Health Tip Details",
-          style: TextStyle(color: Colors.white),
-        ),
-        message: Text(
-          tip,
-          style: const TextStyle(color: Color(0xFFA3BFFA)),
-        ),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () async {
-              const url = 'https://www.apple.com/healthcare/health-records/';
-              if (await canLaunchUrl(Uri.parse(url))) {
-                await launchUrl(Uri.parse(url));
-              }
-              Navigator.pop(context);
-            },
-            child: const Text("Learn More"),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Close"),
-        ),
-      ),
-    );
+  String _generateTitle(String category) {
+    switch (category) {
+      case 'Mindfulness': return "Mindful Breathing";
+      case 'Nutrition': return "Balanced Nutrition";
+      case 'Activity': return "Daily Movement";
+      case 'Recovery': return "Quality Sleep";
+      case 'Prevention': return "Health Screening";
+      default: return "Wellness Tip";
+    }
+  }
+
+  String _generateContent(String category) {
+    switch (category) {
+      case 'Mindfulness': return "Practice 5 minutes of deep breathing daily to reduce stress and improve focus.";
+      case 'Nutrition': return "Include colorful vegetables in every meal for diverse nutrients.";
+      case 'Activity': return "Take a 10-minute walk after meals for better digestion and metabolism.";
+      case 'Recovery': return "Stick to a sleep schedule and aim for 7–9 hours of quality rest.";
+      case 'Prevention': return "Get annual health checkups. Prevention is better than cure.";
+      default: return "Consistency in small daily actions leads to big health wins.";
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoApp(
-      theme: const CupertinoThemeData(
-        brightness: Brightness.dark,
-        primaryColor: Color(0xFF4A90E2),
+    return Theme(
+      data: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0A1E3A),
+        cardColor: const Color(0xFF1A3152),
       ),
-      home: CupertinoPageScaffold(
-        backgroundColor: const Color(0xFF1A252F),
-        navigationBar: CupertinoNavigationBar(
-          middle: const Text(
-            "Health Tips",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Health Insights"),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Color(0xFF4A90E2)),
+              onPressed: () {
+                _controller.reset();
+                _loadTips();
+              },
             ),
-          ),
-          trailing: _isLoading
-              ? const CupertinoActivityIndicator(radius: 12)
-              : GestureDetector(
-            onTap: () {
-              _controller.forward(from: 0.0);
-              _loadTips();
-            },
-            child: const Icon(
-              CupertinoIcons.refresh,
-              size: 28,
-              color: Color(0xFF4A90E2),
-            ),
-          ),
-          backgroundColor: const Color(0xFF1A252F).withOpacity(0.8),
+          ],
         ),
-        child: SafeArea(
-          child: _isLoading
-              ? const Center(child: CupertinoActivityIndicator(radius: 12))
-              : FadeTransition(
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A90E2)))
+            : ScaleTransition(
+          scale: _scaleAnim,
+          child: FadeTransition(
             opacity: _fadeAnim,
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                CupertinoSliverRefreshControl(
-                  onRefresh: () async {
-                    _controller.forward(from: 0.0);
-                    await _loadTips();
-                  },
-                ),
                 SliverPadding(
                   padding: const EdgeInsets.all(20),
                   sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      if (_personalizedTips.isNotEmpty)
+                        ..._personalizedTips.map((tip) => _buildPersonalTipCard(tip)).toList(),
+                      const SizedBox(height: 20),
+                      const Text("General Health Tips",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white)),
+                    ]),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                          (context, index) => _buildHealthCard(_tips[index], index),
-                      childCount: _tips.length,
+                          (context, index) => _buildHealthCard(_commonTips[index]),
+                      childCount: _commonTips.length,
                     ),
                   ),
                 ),
@@ -302,4 +230,59 @@ class _HealthTipsPageState extends State<HealthTipsPage> with SingleTickerProvid
       ),
     );
   }
+
+  Widget _buildPersonalTipCard(String tip) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A3152),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF3B4A5A), width: 0.6),
+      ),
+      child: Text(tip, style: const TextStyle(color: Colors.white, fontSize: 16)),
+    );
+  }
+
+  Widget _buildHealthCard(HealthTip tip) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: const Color(0xFF1A3152),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: tip.color.withOpacity(0.2), shape: BoxShape.circle),
+                  child: Icon(tip.icon, color: tip.color, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Text(tip.category, style: TextStyle(fontSize: 14, color: tip.color, fontWeight: FontWeight.w500)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(tip.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white)),
+            const SizedBox(height: 12),
+            Text(tip.content, style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.8), height: 1.5)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HealthTip {
+  final String title;
+  final String content;
+  final String category;
+  final IconData icon;
+  final Color color;
+
+  HealthTip({required this.title, required this.content, required this.category, required this.icon, required this.color});
 }
